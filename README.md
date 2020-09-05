@@ -13,7 +13,9 @@ A python package case study for Surgo Foundation
 
 ## Overview
 
-Blah blah blah...
+This package contains a tool that allows an entry-level python user to learn the
+structure of a Bayesian Network from data, visualize the network, and produces a
+summary of the influence of predictors on a specified target variable in the network.
 
 
 ## Installation
@@ -22,6 +24,9 @@ This isn't publicly-available on PyPI for obvious reasons. Feel free to clone lo
 
 `git clone -b master https://github.com/ronikobrosly/surgo_bayesian_network.git`
 
+Create a virtual environment, navigate to the project folder and run:
+
+`pip install -r requirements.txt`
 
 ## Requirements
 
