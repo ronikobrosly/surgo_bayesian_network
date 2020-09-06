@@ -4,8 +4,7 @@ Core classes (with basic methods) that will be invoked when other, model classes
 
 
 class Core:
-    """ Base class for surgo_bayesian_network module
-    """
+    """Base class for surgo_bayesian_network module"""
 
     def __init__(self):
         pass

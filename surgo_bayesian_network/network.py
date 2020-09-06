@@ -3,18 +3,26 @@ Bayesian network module
 """
 
 from os.path import expanduser
+import pdb
+from pprint import pprint
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
-from pgmpy.estimators import BayesianEstimator, BicScore, ConstraintBasedEstimator, HillClimbSearch
+from pgmpy.estimators import (
+    BayesianEstimator,
+    BicScore,
+    ConstraintBasedEstimator,
+    HillClimbSearch,
+)
 from pgmpy.independencies import Independencies
 from pgmpy.inference import BeliefPropagation
 from pgmpy.models import BayesianModel
+from pylab import rcParams
+import scipy.stats as ss
 
 from surgo_bayesian_network.core import Core
-
 
 
 class Bayes_Net(Core):
@@ -53,6 +61,9 @@ class Bayes_Net(Core):
     bn_model: pgmpy.models.BayesianModel
         Proper, learned Bayesian Network with conditional probability tables estimated
 
+    odds_ratios: pd.DataFrame
+        DataFrame containing odds ratios for all interventions and levels
+
 
     Methods
     ----------
@@ -67,29 +78,23 @@ class Bayes_Net(Core):
     plot_network: (self, file_path, **kwargs)
         Plots the Bayesian Network (highlighting target variable) and saves PNG to disk.
 
-    estimate_CPT: (self)
-        Estimates the conditional probability tables for each variable / node in the network.
-
     plot_causal_influence: (self, file_path)
         Uses belief propagation to perform inference and calculates odds ratios for how
         changes in intervention evidence will impact the target variable. A forest plot is
         produced from this.
     """
 
-    def __init__(self, target_variable, random_seed, verbose=False):
+    def __init__(self, target_variable, random_seed=0, verbose=False):
         self.verbose = verbose
         self.target_variable = target_variable
         self.random_seed = random_seed
-
 
         # Validate the params
         self._validate_init_params()
 
         if self.verbose:
-            print("Using the following params for GPS model:")
+            print("Using the following params for Bayesian Network model:")
             pprint(self.get_params(), indent=4)
-
-
 
     def _validate_init_params(self):
         """
@@ -118,7 +123,7 @@ class Bayes_Net(Core):
         Returns:
             None
         """
-        self.df = pd.read_csv(filepath_or_buffer = file_path, **kwargs)
+        self.df = pd.read_csv(filepath_or_buffer=file_path, **kwargs)
 
         # Check that target variable is in the dataset
         if self.target_variable not in self.df:
@@ -129,8 +134,37 @@ class Bayes_Net(Core):
 
         return None
 
+    def _cramers_v(self, x, y):
+        """
+        Static method to that calculates Cramers V correlation between two categorical variables
+        """
+        confusion_matrix = pd.crosstab(x, y)
+        chi2 = ss.chi2_contingency(confusion_matrix)[0]
 
-    def learn_structure(self, file_path, algorithm = 'hc'):
+        n = confusion_matrix.sum().sum()
+        phi2 = chi2 / n
+        r, k = confusion_matrix.shape
+        phi2corr = max(0, phi2 - ((k - 1) * (r - 1)) / (n - 1))
+
+        rcorr = r - ((r - 1) ** 2) / (n - 1)
+        kcorr = k - ((k - 1) ** 2) / (n - 1)
+
+        return np.sqrt(phi2corr / min((kcorr - 1), (rcorr - 1)))
+
+    def _initial_filter(self):
+        """
+        Filters out nodes with zero correlation with target variable
+        """
+
+        relevant_vars = []
+
+        for node in self.df.columns:
+            if self._cramers_v(self.df["B"], self.df[node]) > 0:
+                relevant_vars.append(node)
+
+        return self.df[relevant_vars]
+
+    def learn_structure(self, file_path, algorithm="hc", significance_level=0.10):
         """
         Employs `pgmpy` package's Bayesian Network structure learning algorithms to learn
         structure from a dataset. Saves a tabular version of the result as a CSV file.
@@ -141,6 +175,9 @@ class Bayes_Net(Core):
                 Two possible values include: 'hc', 'pc'. Note, I found a bug in pgmpy implementation
                 halfway through this project. Don't use the 'pc' method.
             file_path: str, the absolute path to save the file to (e.g. "~/Desktop/BN_structure.csv")
+            significance_level: float, option (default = 0.10)
+                Statistical significance cutoff for use in pruning the network when using the PC
+                algorithm. Lower values produce sparser networks.
 
         Returns:
             None
@@ -148,21 +185,65 @@ class Bayes_Net(Core):
         self.structure_algorithm = algorithm
 
         if self.verbose:
-            print("Depending on the number of variables in your dataset, this might take some time...")
+            print(
+                "Depending on the number of variables in your dataset, this might take some time..."
+            )
 
         # Learn structure, using one of the algorithms
         np.random.seed(self.random_seed)
 
         if algorithm == "hc":
-            self.structure_model = HillClimbSearch(bn.df, scoring_method=BicScore(bn.df)).estimate()
+
+            # Filter out columns with zero correlation with target variable
+            self.filtered_df = self._initial_filter()
+
+            # Run HC algorithm
+            self.structure_model = HillClimbSearch(
+                self.filtered_df, scoring_method=BicScore(self.filtered_df)
+            ).estimate()
+
+            if self.verbose:
+                print(
+                    f"Structure learned! Saving structure to the following CSV: {file_path}"
+                )
+
+            # Eliminate isolated subgraphs
+            G = self.structure_model.to_undirected()
+
+            connected_nodes = list(
+                nx.algorithms.components.node_connected_component(
+                    G, self.target_variable
+                )
+            )
+
+            disconnected_nodes = list(
+                set(list(self.structure_model.nodes)) - set(connected_nodes)
+            )
+
+            for node in disconnected_nodes:
+                self.structure_model.remove_node(node)
+                self.filtered_df.drop([node], axis=1, inplace=True)
+
+            pd.DataFrame(
+                list(self.structure_model.edges),
+                columns=["from_variable", "to_variable"],
+            ).to_csv("~/Desktop/BN_structure.csv", index=False)
+
         elif algorithm == "pc":
-            self.structure_model = ConstraintBasedEstimator(bn.df).estimate(significance_level = 0.10)
+            self.filtered_df = self.df
+            self.structure_model = ConstraintBasedEstimator(self.filtered_df).estimate(
+                significance_level=significance_level
+            )
 
-        if self.verbose:
-            print(f"Structure learned! Saving structure to the following CSV: {file_path}")
+            if self.verbose:
+                print(
+                    f"Structure learned! Saving structure to the following CSV: {file_path}"
+                )
 
-        pd.DataFrame(list(self.structure_model.edges), columns =["from_variable", "to_variable"]).to_csv("~/Desktop/BN_structure.csv", index = False)
-
+            pd.DataFrame(
+                list(self.structure_model.edges),
+                columns=["from_variable", "to_variable"],
+            ).to_csv("~/Desktop/BN_structure.csv", index=False)
 
     def plot_network(self, file_path, **kwargs):
         """
@@ -176,34 +257,39 @@ class Bayes_Net(Core):
             None
         """
         if self.verbose:
-            print(f"Saving Bayesian Network plot to the following PNG file: {file_path}")
+            print(
+                f"Saving Bayesian Network plot to the following PNG file: {file_path}"
+            )
 
         # Identify target variable so we can highlight it in the plot
         target_index = list(self.structure_model).index(self.target_variable)
         node_size_list = [300] * len(list(self.structure_model.nodes))
-        node_color_list = ['#95ABDF'] * len(list(self.structure_model.nodes))
+        node_color_list = ["#95ABDF"] * len(list(self.structure_model.nodes))
         node_size_list[target_index] = 1500
-        node_color_list[target_index] = '#F09A9A'
+        node_color_list[target_index] = "#F09A9A"
 
         # Clear any existing pyplot fig, create plot, and save to disk
         plt.clf()
-        nx.draw(self.structure_model, node_size = node_size_list, node_color = node_color_list, with_labels=True, **kwargs)
-        plt.savefig(expanduser(file_path), format="PNG", dpi = 300)
+        nx.draw(
+            self.structure_model,
+            node_size=node_size_list,
+            node_color=node_color_list,
+            with_labels=True,
+            **kwargs,
+        )
+        plt.savefig(expanduser(file_path), format="PNG", dpi=300)
 
-
-    def estimate_CPT(self):
+    def _estimate_CPT(self):
         """
         Estimates the conditional probability tables associated with each node in the
         Bayesian Network.
-
-        Arguments:
-            None
-
-        Returns:
-            None
         """
-        self.bn_model = BayesianEstimator(BayesianModel(list(bn.structure_model.edges)), bn.df)
 
+        self.bn_model = BayesianModel(list(self.structure_model.edges))
+        self.cpt_model = BayesianEstimator(self.bn_model, self.filtered_df)
+
+        for node in list(self.bn_model.nodes):
+            self.bn_model.add_cpds(self.cpt_model.estimate_cpd(node))
 
     def plot_causal_influence(self, file_path):
         """
@@ -219,10 +305,127 @@ class Bayes_Net(Core):
             None
         """
 
+        # Estimate CPTs
+        self._estimate_CPT()
+
         if self.verbose:
-            print(f"Saving Bayesian Network plot to the following PNG file: {file_path}")
+            print(f"Calculating influence of all nodes on target node")
+
+        if not self.bn_model.check_model():
+            print(
+                """
+                There is a problem with your network structure. You have disconnected nodes
+                or separated sub-networks. Please examine your network plot and re-learn your
+                network structure with tweaked settings.
+                """
+            )
+            return None
+
+        if self.target_variable not in self.bn_model.nodes:
+            print(
+                """
+                Your target variable has no parent nodes! Can't perform inference! Please examine
+                your network plot and re-learn your network structure with tweaked settings.
+                """
+            )
+            return None
+
+        # Prep for belief propagation
+        belief_propagation = BeliefPropagation(self.bn_model)
+        belief_propagation.calibrate()
+
+        # Iterate over all intervention nodes and values, calculating odds ratios w.r.t target variable
+        overall_dict = {}
+
+        variables_to_test = list(
+            set(list(self.bn_model.nodes)) - set(list(self.target_variable))
+        )
+
+        for node in variables_to_test:
+            results = []
+            for value in self.filtered_df[node].unique():
+                prob = belief_propagation.query(
+                    variables=[self.target_variable],
+                    evidence={node: value},
+                    show_progress=False,
+                ).values
+                results.append([node, value, prob[0], prob[1]])
+
+            results_df = pd.DataFrame(
+                results, columns=["node", "value", "probability_0", "probability_1"]
+            )
+            results_df["odds_1"] = (
+                results_df["probability_1"] / results_df["probability_0"]
+            )
+            results_df = results_df.sort_values(
+                "value", ascending=True, inplace=False
+            ).reset_index(drop=True)
+
+            overall_dict[node] = results_df
+
+        final_df_list = []
+
+        for node, temp_df in overall_dict.items():
+            first_value = temp_df["odds_1"].iloc[0]
+            temp_df["odds_ratio"] = (temp_df["odds_1"] / first_value).round(3)
+            final_df_list.append(temp_df)
+
+        final_df = pd.concat(final_df_list)[["node", "value", "odds_ratio"]]
+        self.odds_ratios = final_df
 
         if self.verbose:
             print(f"Saving forest plot to the following PNG file: {file_path}")
 
-        pass
+        # Clean up the dataframe of odds ratios so plot can have nice labels
+        final_df2 = (
+            pd.concat(
+                [
+                    final_df,
+                    final_df.groupby("node")["value"]
+                    .apply(lambda x: x.shift(-1).iloc[-1])
+                    .reset_index(),
+                ]
+            )
+            .sort_values(by=["node", "value"], ascending=True)
+            .reset_index(drop=True)
+        )
+        final_df2["node"][final_df2["value"].isnull()] = np.nan
+        final_df2["value"] = final_df2["value"].astype("Int32").astype(str)
+        final_df2["value"].replace({np.nan: ""}, inplace=True)
+        final_df3 = final_df2.reset_index(drop=True).reset_index()
+        final_df3.rename(columns={"index": "vertical_index"}, inplace=True)
+        final_df3["y_label"] = final_df3["node"] + " = " + final_df3["value"]
+        final_df3["y_label"][final_df3["odds_ratio"] == 1.0] = (
+            final_df3["y_label"] + " (ref)"
+        )
+        final_df3["y_label"].fillna("", inplace=True)
+
+        # Produce large plot
+        plt.clf()
+        plt.title("Strength of Associations Between Interventions and Target Variable")
+        plt.scatter(
+            x=final_df3["odds_ratio"],
+            y=final_df3["vertical_index"],
+            s=70,
+            color="b",
+            alpha=0.5,
+        )
+        plt.xlabel("Odds Ratio")
+        plt.axvline(x=1.0, color="red", linewidth="1.5", linestyle="--")
+        plt.yticks(final_df3["vertical_index"], final_df3["y_label"])
+
+        for _, row in final_df3.iterrows():
+            if not np.isnan(row["odds_ratio"]):
+                plt.plot(
+                    [0, row["odds_ratio"]],
+                    [row["vertical_index"], row["vertical_index"]],
+                    color="black",
+                    linewidth="0.4",
+                )
+
+        plt.xlim([0, final_df3["odds_ratio"].max() + 1])
+
+        figure = plt.gcf()
+        figure.set_size_inches(12, 7)
+
+        plt.savefig(expanduser(file_path), bbox_inches="tight", format="PNG", dpi=300)
