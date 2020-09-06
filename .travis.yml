@@ -1,0 +1,22 @@
+language: python
+
+# sudo false implies containerized builds
+sudo: false
+
+python:
+  - 3.6
+
+env:
+  global:
+    # test invocation
+    - TESTFOLDER="tests"
+
+before_install:
+# Here we download miniconda and install the dependencies
+- pip install networkx numpy pandas pgmpy==0.1.11 pomegranate pygraphviz pytest scipy
+
+install:
+- python setup.py install
+
+script:
+- coverage run -m pytest $TESTFOLDER
