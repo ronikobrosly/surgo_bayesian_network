@@ -20,6 +20,6 @@ from surgo_bayesian_network import Bayes_Net
 
 bn = Bayes_Net(target_variable = "B", verbose = True, random_seed = 111)
 bn.read_data("~/Desktop/surgo/data_5000samples.csv")
-bn.learn_structure("~/Desktop/structure.csv", algorithm = 'hc')
+bn.learn_structure("~/Desktop/structure.csv", algorithm = 'pc', significance_level = 0.05)
 bn.plot_network("~/Desktop/structure.png")
 bn.plot_causal_influence("~/Desktop/forest_plot.png")
