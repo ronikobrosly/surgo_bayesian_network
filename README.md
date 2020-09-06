@@ -32,7 +32,7 @@ Create a virtual environment, navigate to the project folder and run:
 
 ## Requirements
 
-Blah blah blah
+This tool requires python >= 3.7.6 and pgmpy 0.1.11
 
 
 ## Quickstart

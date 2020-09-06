@@ -1,4 +1,8 @@
+networkx
+numpy
 pandas
+pgmpy==0.1.11
 pomegranate
 pygraphviz
 pytest
+scipy

@@ -3,7 +3,6 @@ Bayesian network module
 """
 
 from os.path import expanduser
-import pdb
 from pprint import pprint
 
 import matplotlib.pyplot as plt
