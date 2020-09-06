@@ -23,5 +23,6 @@ setuptools.setup(
         'pandas',
         'pomegranate',
         'pygraphviz',
+        'pytest'
     ]
 )

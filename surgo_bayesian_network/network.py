@@ -112,6 +112,15 @@ class Bayes_Net(Core):
                 f"verbose parameter must be a boolean type, but found type {type(self.verbose)}"
             )
 
+        # Checks for random_seed
+        if not isinstance(self.random_seed, (int, type(None))):
+            raise TypeError(
+                f"random_seed parameter must be an int, but found type {type(self.random_seed)}"
+            )
+
+        if (isinstance(self.random_seed, int)) and self.random_seed < 0:
+            raise ValueError(f"random_seed parameter must be > 0")
+
     def read_data(self, file_path, **kwargs):
         """
         Wrapper for pandas `read_csv` function. Assumes file is CSV with a header row.
@@ -159,7 +168,7 @@ class Bayes_Net(Core):
         relevant_vars = []
 
         for node in self.df.columns:
-            if self._cramers_v(self.df["B"], self.df[node]) > 0:
+            if self._cramers_v(self.df[self.target_variable], self.df[node]) > 0:
                 relevant_vars.append(node)
 
         return self.df[relevant_vars]

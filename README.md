@@ -9,6 +9,8 @@ A python package case study for Surgo Foundation
 - [Overview](#overview)
 - [Installation](#installation)
 - [Requirements](#requirements)
+- [Quickstart](#quickstart)
+- [Tests](#tests)
 
 
 ## Overview
@@ -31,3 +33,22 @@ Create a virtual environment, navigate to the project folder and run:
 ## Requirements
 
 Blah blah blah
+
+
+## Quickstart
+
+Within your virtual environment with all dependencies installed, navigate to the root folder
+of the `surgo_bayesian_network` project, import the `Bayes_Net` class, and you can begin using the tool:
+
+```
+from surgo_bayesian_network import Bayes_Net
+
+bn = Bayes_Net(target_variable = "B", verbose = True, random_seed = 111)
+```
+
+## Tests
+
+To run the example unit and integration tests, install the python package `pytest` and within the
+root folder of the `surgo_bayesian_network` project run the following command:
+
+```pytest tests/```
