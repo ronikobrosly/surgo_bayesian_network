@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/ronikobrosly/surgo_bayesian_network.svg?token=Crox3VjxG9B3SHySQnBo&branch=master)](https://travis-ci.com/ronikobrosly/surgo_bayesian_network)
+
 # Surgo Bayesian Network
 
 A python package case study for Surgo Foundation
