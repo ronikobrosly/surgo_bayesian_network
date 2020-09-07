@@ -235,7 +235,7 @@ class Bayes_Net(Core):
             pd.DataFrame(
                 list(self.structure_model.edges),
                 columns=["from_variable", "to_variable"],
-            ).to_csv("~/Desktop/BN_structure.csv", index=False)
+            ).to_csv(file_path, index=False)
 
         elif algorithm == "pc":
             self.filtered_df = self.df
@@ -251,7 +251,7 @@ class Bayes_Net(Core):
             pd.DataFrame(
                 list(self.structure_model.edges),
                 columns=["from_variable", "to_variable"],
-            ).to_csv("~/Desktop/BN_structure.csv", index=False)
+            ).to_csv(file_path, index=False)
 
     def plot_network(self, file_path, **kwargs):
         """
