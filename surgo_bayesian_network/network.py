@@ -172,7 +172,7 @@ class Bayes_Net(Core):
 
         return self.df[relevant_vars]
 
-    def learn_structure(self, file_path, algorithm="hc", significance_level=0.10):
+    def learn_structure(self, file_path, algorithm="hc", significance_level=0.05):
         """
         Employs `pgmpy` package's Bayesian Network structure learning algorithms to learn
         structure from a dataset. Saves a tabular version of the result as a CSV file.
@@ -183,7 +183,7 @@ class Bayes_Net(Core):
                 Two possible values include: 'hc', 'pc'. Note, I found a bug in pgmpy implementation
                 halfway through this project. Don't use the 'pc' method.
             file_path: str, the absolute path to save the file to (e.g. "~/Desktop/BN_structure.csv")
-            significance_level: float, option (default = 0.10)
+            significance_level: float, option (default = 0.05)
                 Statistical significance cutoff for use in pruning the network when using the PC
                 algorithm. Lower values produce sparser networks.
 
