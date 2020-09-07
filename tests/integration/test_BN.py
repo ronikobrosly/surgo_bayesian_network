@@ -17,7 +17,7 @@ def test_structure_learning_flow(dataset_fixture):
     bn = Bayes_Net("target", verbose=False, random_seed=123)
 
     bn.read_data("tests/integration/test.csv")
-    bn.learn_structure("~/Desktop/structure.csv", algorithm="hc")
+    bn.learn_structure("structure.csv", algorithm="hc")
 
     assert isinstance(bn.structure_model, pgmpy.base.DAG)
     assert "target" in bn.structure_model.nodes
